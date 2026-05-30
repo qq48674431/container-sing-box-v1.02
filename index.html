@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="./">
+    <title>路由管理后台</title>
+    <script src="assets/vendor/vue.global.js"></script>
+    <script src="assets/vendor/tailwindcss.js"></script>
+    <script src="proxy-parser.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c5c5c5; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        .slide-fade-enter-active { transition: all 0.3s ease-out; }
+        .slide-fade-leave-active { transition: all 0.2s cubic-bezier(1, 0.5, 0.8, 1); }
+        .slide-fade-enter-from, .slide-fade-leave-to { transform: translateY(-20px); opacity: 0; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans">
+<div id="app" class="flex h-screen overflow-hidden relative">
+
+    <transition name="slide-fade">
+        <div v-if="toast.show" class="fixed top-6 left-1/2 transform -translate-x-1/2 z-[100] px-6 py-3 rounded-full shadow-lg font-bold text-sm flex items-center space-x-2"
+             :class="toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'">
+            <span>{{ toast.type === 'success' ? '✅' : '❌' }}</span>
+            <span>{{ toast.message }}</span>
+        </div>
+    </transition>
+
+    <aside class="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col transition-all z-10 shadow-sm">
+        <div class="p-6 text-center border-b border-gray-100">
+            <h1 class="text-xl font-bold text-indigo-600 tracking-wide">代理管理后台</h1>
+        </div>
+        <nav class="flex-1 py-4 space-y-1">
+            <button @click="currentMenu = 'dashboard'" :class="{'bg-indigo-50 text-indigo-600 border-r-4 border-indigo-500': currentMenu === 'dashboard', 'text-gray-600 hover:bg-gray-50': currentMenu !== 'dashboard'}" class="w-full flex items-center px-6 py-3 transition text-sm font-medium"><span class="mr-3">⏱</span> 仪表盘</button>
+            <button @click="currentMenu = 'proxies'" :class="{'bg-indigo-500 text-white shadow-md rounded-lg mx-2': currentMenu === 'proxies', 'text-gray-600 hover:bg-gray-50': currentMenu !== 'proxies'}" class="w-full flex items-center px-6 py-3 transition text-sm font-medium" :style="currentMenu === 'proxies' ? 'width: calc(100% - 16px);' : ''"><span class="mr-3">🌐</span> 代理管理</button>
+            <button @click="currentMenu = 'devices'" :class="{'bg-indigo-500 text-white shadow-md rounded-lg mx-2': currentMenu === 'devices', 'text-gray-600 hover:bg-gray-50': currentMenu !== 'devices'}" class="w-full flex items-center px-6 py-3 transition text-sm font-medium" :style="currentMenu === 'devices' ? 'width: calc(100% - 16px);' : ''"><span class="mr-3">💻</span> 设备管理</button>
+
+            <button @click="currentMenu = 'vpn'" :class="{'bg-indigo-500 text-white shadow-md rounded-lg mx-2': currentMenu === 'vpn', 'text-gray-600 hover:bg-gray-50': currentMenu !== 'vpn'}" class="w-full flex items-center px-6 py-3 transition text-sm font-medium" :style="currentMenu === 'vpn' ? 'width: calc(100% - 16px);' : ''"><span class="mr-3">🔒</span> VPN 管理</button>
+            <button @click="currentMenu = 'wifi'" :class="{'bg-indigo-500 text-white shadow-md rounded-lg mx-2': currentMenu === 'wifi', 'text-gray-600 hover:bg-gray-50': currentMenu !== 'wifi'}" class="w-full flex items-center px-6 py-3 transition text-sm font-medium" :style="currentMenu === 'wifi' ? 'width: calc(100% - 16px);' : ''"><span class="mr-3">📶</span> WiFi 管理</button>
+            <button @click="currentMenu = 'pc'" :class="{'bg-indigo-500 text-white shadow-md rounded-lg mx-2': currentMenu === 'pc', 'text-gray-600 hover:bg-gray-50': currentMenu !== 'pc'}" class="w-full flex items-center px-6 py-3 transition text-sm font-medium" :style="currentMenu === 'pc' ? 'width: calc(100% - 16px);' : ''">
+                <span class="mr-3">🖥️</span> 内网终端管理
+            </button>
+            <button @click="currentMenu = 'system'" :class="{'bg-indigo-500 text-white shadow-md rounded-lg mx-2': currentMenu === 'system', 'text-gray-600 hover:bg-gray-50': currentMenu !== 'system'}" class="w-full flex items-center px-6 py-3 transition text-sm font-medium" :style="currentMenu === 'system' ? 'width: calc(100% - 16px);' : ''"><span class="mr-3">⚙️</span> 系统设置</button>
+        </nav>
+    </aside>
+
+    <div v-if="mobileMenuOpen" class="fixed inset-0 z-40 md:hidden">
+        <div class="absolute inset-0 bg-gray-900/45" @click="mobileMenuOpen = false"></div>
+        <aside class="absolute left-0 top-0 h-full w-72 max-w-[84vw] bg-white shadow-2xl flex flex-col">
+            <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+                <h2 class="text-base font-bold text-indigo-600">代理管理后台</h2>
+                <button @click="mobileMenuOpen = false" class="w-9 h-9 rounded-lg border border-gray-200 text-gray-500 flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+                <button v-for="item in menuItems" :key="item.key" @click="switchMenu(item.key)"
+                        :class="currentMenu === item.key ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-50'"
+                        class="w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition">
+                    <span>{{ item.label }}</span>
+                    <span v-if="currentMenu === item.key" class="w-2 h-2 rounded-full bg-white"></span>
+                </button>
+            </nav>
+        </aside>
+    </div>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden bg-[#f4f7fc]">
+        <div class="bg-white shadow-sm border-b border-gray-200 px-3 md:px-6 py-3 flex justify-between items-center gap-3 z-10">
+            <button @click="mobileMenuOpen = true" class="md:hidden w-10 h-10 rounded-lg border border-gray-200 bg-white text-gray-700 flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16"></path></svg>
+            </button>
+            <div class="min-w-0 flex-1">
+                <div class="md:hidden text-sm font-bold text-gray-800 truncate">{{ currentMenuTitle }}</div>
+                <div class="text-xs md:text-sm font-medium text-gray-500 flex items-center truncate">
+                <span v-if="hasUnappliedChanges" class="flex h-3 w-3 relative mr-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+                {{ hasUnappliedChanges ? '配置已更改，需点击右侧按钮生效' : '当前配置已是最新状态' }}
+                </div>
+            </div>
+            <button @click="applyConfigAndRestart" :disabled="isApplying" :class="{'opacity-50 cursor-not-allowed': isApplying}" class="bg-red-500 hover:bg-red-600 text-white px-3 md:px-5 py-2 rounded-lg shadow-md text-xs md:text-sm font-bold transition flex items-center shrink-0 whitespace-nowrap">
+                <span>⚡ {{ isApplying ? '正在重启核心...' : '应用并重启核心' }}</span>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-3 md:p-6">
+
+            <div v-show="currentMenu === 'dashboard'" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
+                    <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100 text-center">
+                        <p class="text-gray-500 text-sm">CPU 使用率</p>
+                        <p class="text-2xl font-bold text-indigo-600 mt-2">{{ stats.cpu_percent.toFixed(1) }}%</p>
+                    </div>
+                    <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100 text-center">
+                        <p class="text-gray-500 text-sm">内存使用率</p>
+                        <p class="text-2xl font-bold text-emerald-500 mt-2">{{ stats.mem_percent.toFixed(1) }}%</p>
+                    </div>
+                    <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100 text-center">
+                        <p class="text-gray-500 text-sm">系统</p>
+                        <p class="text-xl font-bold text-gray-700 mt-2">{{ stats.os }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div v-show="currentMenu === 'proxies'" class="space-y-4">
+                <div class="bg-white p-3 md:p-4 rounded-xl shadow-sm flex flex-col md:flex-row md:justify-between md:items-center gap-3 border border-gray-100">
+                    <div class="flex flex-wrap gap-2 md:gap-3">
+                        <button @click="showProxyModal = true" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition flex items-center">+ 导入纯Socks</button>
+                        <button @click="showV2rayParserModal = true" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition flex items-center">🔮 智能解析加密代理</button>
+                        <button @click="exportSelectedProxies" :disabled="selectedProxyTags.length === 0" :class="{'opacity-50 cursor-not-allowed': selectedProxyTags.length === 0}" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition flex items-center">📤 导出代理</button>
+                        <button @click="testAllProxies" :disabled="isTestingAll" :class="{'opacity-75 cursor-not-allowed': isTestingAll}" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition flex items-center">⚡ {{ isTestingAll ? '检测中...' : '一键测速全部' }}</button>
+                        <button @click="batchDeleteProxies" :disabled="selectedProxyTags.length === 0" :class="{'opacity-50 cursor-not-allowed': selectedProxyTags.length === 0}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition flex items-center">🗑️ 批量删除</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hidden md:block">
+                    <div class="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                        <h3 class="font-bold text-gray-700">综合代理列表</h3>
+                        <span class="text-xs text-gray-500">共 {{ configData.nodes.length }} 个节点</span>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                        <tr class="border-b border-gray-200 text-sm text-gray-600 font-medium bg-gray-50">
+                            <th class="p-3 w-10 text-center"><input type="checkbox" @change="toggleAllProxies" :checked="isAllProxiesSelected && configData.nodes.length > 0" class="cursor-pointer"></th>
+                            <th class="p-3">标签</th>
+                            <th class="p-3 w-20">类型</th>
+                            <th class="p-3">IP / 域名</th>
+                            <th class="p-3 w-20">端口</th>
+                            <th class="p-3 text-center w-24">延迟</th>
+                            <th class="p-3 text-right w-56">操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <template v-for="node in configData.nodes" :key="node.tag">
+                            <tr class="border-b border-gray-100 hover:bg-indigo-50/30 transition text-sm">
+                                <td class="p-3 text-center"><input type="checkbox" v-model="node.selected" class="cursor-pointer"></td>
+                                <td class="p-3 font-bold text-indigo-600 truncate max-w-[150px]" :title="node.tag">{{ node.tag }}</td>
+                                <td class="p-3">
+                                    <span :class="{'bg-purple-100 text-purple-600': node.type !== 'socks', 'bg-gray-100 text-gray-600': node.type === 'socks'}" class="px-2 py-1 rounded text-[10px] font-bold uppercase">{{ node.type || 'socks' }}</span>
+                                </td>
+                                <td class="p-3 text-gray-700 font-mono text-xs">{{ node.server }}</td>
+                                <td class="p-3 font-mono text-xs">{{ node.server_port }}</td>
+                                <td class="p-3 text-center">
+                                    <button v-if="!node.testing && node.latency === undefined" @click="testProxy(node)" class="text-blue-500 hover:underline text-xs">测速</button>
+                                    <span v-else-if="node.testing" class="text-gray-400 text-xs animate-pulse">检测中...</span>
+                                    <div v-else-if="node.latency !== undefined" class="flex items-center justify-center space-x-1 cursor-pointer" @click="testProxy(node)" title="点击重新测速">
+                                        <span v-if="node.latency > 0 && node.latency <= 150" class="w-2 h-2 rounded-full bg-green-500"></span>
+                                        <span v-else-if="node.latency > 150 && node.latency <= 300" class="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                        <span v-else-if="node.latency > 300" class="w-2 h-2 rounded-full bg-red-500"></span>
+
+                                        <span v-if="node.latency > 0" :class="{'text-green-600': node.latency <= 150, 'text-yellow-600': node.latency > 150 && node.latency <= 300, 'text-red-600': node.latency > 300}" class="text-xs font-bold">{{ node.latency }}ms</span>
+                                        <span v-else class="text-xs text-red-500 font-bold">超时</span>
+                                    </div>
+                                </td>
+                                <td class="p-3 flex space-x-2 justify-end items-center">
+                                    <button @click="node.expanded = !node.expanded" class="text-gray-400 hover:text-indigo-600 p-1 bg-gray-100 hover:bg-indigo-50 rounded transition shadow-sm">
+                                        <svg class="w-4 h-4 transform transition-transform" :class="{'rotate-180': node.expanded}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </button>
+                                    <button @click="realTestProxy(node)" :disabled="node.realTesting" class="bg-emerald-500 hover:bg-emerald-600 text-white px-2 py-1 rounded text-xs shadow-sm disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+                                        {{ node.realTesting ? '查询中' : '查IP' }}
+                                    </button>
+                                    <button @click="openEditModal(node)" class="bg-orange-400 hover:bg-orange-500 text-white px-2 py-1 rounded text-xs shadow-sm">编辑</button>
+                                    <button @click="deleteNode(node.tag)" class="bg-red-400 hover:bg-red-500 text-white px-2 py-1 rounded text-xs shadow-sm">删除</button>
+                                </td>
+                            </tr>
+
+                            <tr v-show="node.expanded" class="bg-gray-50/80 border-b border-gray-100">
+                                <td colspan="7" class="p-4">
+                                    <div class="grid grid-cols-2 gap-4 text-xs">
+                                        <div v-if="node.uuid">
+                                            <span class="text-gray-400 block mb-1">UUID / 密码</span>
+                                            <span class="font-mono text-indigo-500 break-all bg-white px-2 py-1 rounded border">{{ node.uuid || node.password }}</span>
+                                        </div>
+                                        <div v-else-if="node.username">
+                                            <span class="text-gray-400 block mb-1">账号密码</span>
+                                            <span class="font-mono text-indigo-500 bg-white px-2 py-1 rounded border">{{ node.username }} : {{ node.password }}</span>
+                                        </div>
+
+                                        <div v-if="node.tls">
+                                            <span class="text-gray-400 block mb-1">TLS 配置</span>
+                                            <div class="bg-white px-2 py-1 rounded border font-mono">
+                                                SNI: <span class="text-green-600">{{ node.tls.server_name || '无' }}</span> |
+                                                指纹: <span class="text-purple-600">{{ node.tls.utls?.fingerprint || '默认' }}</span>
+                                            </div>
+                                        </div>
+
+                                        <div v-if="node.transport">
+                                            <span class="text-gray-400 block mb-1">传输层 (Transport)</span>
+                                            <div class="bg-white px-2 py-1 rounded border font-mono">
+                                                类型: <span class="text-blue-600 font-bold uppercase">{{ node.transport.type }}</span> |
+                                                路径: <span class="text-gray-600">{{ node.transport.path || node.transport.service_name || '/' }}</span>
+                                            </div>
+                                        </div>
+
+                                        <div v-if="node.realTestResult" class="col-span-2">
+                                            <span class="text-gray-400 block mb-1">真实出口测试</span>
+                                            <div v-if="node.realTestResult.success" class="bg-white px-2 py-1 rounded border font-mono text-xs space-y-1">
+                                                <div>出口 IP: <span class="text-indigo-600 font-bold">{{ node.realTestResult.ip }}</span></div>
+                                                <div>位置: <span class="text-emerald-600">{{ [node.realTestResult.country, node.realTestResult.region, node.realTestResult.city].filter(Boolean).join(' ') || '-' }}</span></div>
+                                                <div>运营商: <span class="text-purple-600">{{ node.realTestResult.isp || '-' }}</span> | 延迟: <span class="text-blue-600 font-bold">{{ node.realTestResult.latency }}ms</span></div>
+                                            </div>
+                                            <div v-else class="bg-red-50 text-red-500 px-2 py-1 rounded border border-red-100 font-mono text-xs">
+                                                {{ node.realTestResult.message || '真实测试失败' }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                        <tr v-if="configData.nodes.length === 0">
+                            <td colspan="7" class="p-8 text-center text-gray-400">暂无代理节点，请点击上方导入</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="md:hidden space-y-3">
+                    <div v-if="configData.nodes.length === 0" class="bg-white rounded-lg border border-gray-100 p-6 text-center text-sm text-gray-400">
+                        暂无代理节点
+                    </div>
+                    <div v-for="node in configData.nodes" :key="node.tag" class="bg-white rounded-lg border border-gray-100 shadow-sm p-4 space-y-3">
+                        <div class="flex items-start gap-3">
+                            <input type="checkbox" v-model="node.selected" class="mt-1 cursor-pointer">
+                            <div class="min-w-0 flex-1">
+                                <div class="font-bold text-indigo-600 truncate" :title="node.tag">{{ node.tag }}</div>
+                                <div class="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                                    <span :class="{'bg-purple-100 text-purple-600': node.type !== 'socks', 'bg-gray-100 text-gray-600': node.type === 'socks'}" class="px-2 py-1 rounded font-bold uppercase">{{ node.type || 'socks' }}</span>
+                                    <span class="font-mono text-gray-500 truncate">{{ node.server }}:{{ node.server_port }}</span>
+                                </div>
+                            </div>
+                            <button @click="node.expanded = !node.expanded" class="w-9 h-9 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
+                                <svg class="w-4 h-4 transform transition-transform" :class="{'rotate-180': node.expanded}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </button>
+                        </div>
+
+                        <div class="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+                            <span class="text-xs text-gray-500">端口连通性</span>
+                            <button v-if="!node.testing && node.latency === undefined" @click="testProxy(node)" class="text-blue-500 text-xs font-bold">测速</button>
+                            <span v-else-if="node.testing" class="text-gray-400 text-xs animate-pulse">检测中...</span>
+                            <button v-else @click="testProxy(node)" class="flex items-center gap-1 text-xs font-bold">
+                                <span v-if="node.latency > 0 && node.latency <= 150" class="w-2 h-2 rounded-full bg-green-500"></span>
+                                <span v-else-if="node.latency > 150 && node.latency <= 300" class="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                <span v-else-if="node.latency > 300" class="w-2 h-2 rounded-full bg-red-500"></span>
+                                <span v-if="node.latency > 0" :class="{'text-green-600': node.latency <= 150, 'text-yellow-600': node.latency > 150 && node.latency <= 300, 'text-red-600': node.latency > 300}">{{ node.latency }}ms</span>
+                                <span v-else class="text-red-500">超时</span>
+                            </button>
+                        </div>
+
+                        <div v-show="node.expanded" class="space-y-2 text-xs">
+                            <div v-if="node.uuid || node.username" class="rounded-lg bg-gray-50 p-3">
+                                <div class="text-gray-400 mb-1">凭证</div>
+                                <div class="font-mono text-indigo-600 break-all">{{ node.uuid || (node.username + ' : ' + node.password) }}</div>
+                            </div>
+                            <div v-if="node.tls" class="rounded-lg bg-gray-50 p-3">
+                                <div class="text-gray-400 mb-1">TLS</div>
+                                <div class="font-mono break-all">SNI: {{ node.tls.server_name || '-' }}</div>
+                            </div>
+                            <div v-if="node.transport" class="rounded-lg bg-gray-50 p-3">
+                                <div class="text-gray-400 mb-1">Transport</div>
+                                <div class="font-mono break-all">{{ node.transport.type }} / {{ node.transport.path || node.transport.service_name || '/' }}</div>
+                            </div>
+                            <div v-if="node.realTestResult" class="rounded-lg bg-gray-50 p-3">
+                                <div class="text-gray-400 mb-1">真实出口</div>
+                                <div v-if="node.realTestResult.success" class="space-y-1">
+                                    <div>IP: <span class="text-indigo-600 font-bold">{{ node.realTestResult.ip }}</span></div>
+                                    <div>位置: <span class="text-emerald-600">{{ [node.realTestResult.country, node.realTestResult.region, node.realTestResult.city].filter(Boolean).join(' ') || '-' }}</span></div>
+                                    <div>延迟: <span class="text-blue-600 font-bold">{{ node.realTestResult.latency }}ms</span></div>
+                                </div>
+                                <div v-else class="text-red-500">{{ node.realTestResult.message || '真实测试失败' }}</div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <button @click="realTestProxy(node)" :disabled="node.realTesting" class="bg-emerald-500 text-white py-2 rounded-lg text-xs font-bold disabled:opacity-50">{{ node.realTesting ? '查询中' : '查IP' }}</button>
+                            <button @click="openEditModal(node)" class="bg-orange-400 text-white py-2 rounded-lg text-xs font-bold">编辑</button>
+                            <button @click="deleteNode(node.tag)" class="bg-red-400 text-white py-2 rounded-lg text-xs font-bold">删除</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-show="currentMenu === 'devices'" class="space-y-4">
+                <div class="bg-white p-3 md:p-4 rounded-xl shadow-sm flex flex-col md:flex-row md:justify-between md:items-center gap-3 border border-gray-100">
+                    <div class="flex flex-wrap gap-2 md:gap-3">
+                        <button @click="showAddModal = true" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 md:px-5 py-2 rounded-lg shadow-sm text-sm font-medium transition">
+                            + 添加设备
+                        </button>
+                        <button @click="batchDeleteDevices" :disabled="selectedDeviceIPs.length === 0 || isDeletingDevices" :class="{'opacity-50 cursor-not-allowed': selectedDeviceIPs.length === 0 || isDeletingDevices}" class="bg-red-500 hover:bg-red-600 text-white px-4 md:px-5 py-2 rounded-lg shadow-sm text-sm font-medium transition flex items-center">
+                            🗑️ {{ isDeletingDevices ? '删除中...' : '批量删除' }}<span v-if="selectedDeviceIPs.length > 0" class="ml-1">({{ selectedDeviceIPs.length }})</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hidden md:block">
+                    <div class="p-4 border-b border-gray-100 bg-gray-50/50">
+                        <h3 class="font-bold text-gray-700">设备与分流列表</h3>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                        <tr class="border-b border-gray-200 text-sm text-gray-600 font-medium bg-gray-50">
+                            <th class="p-4 w-10 text-center"><input type="checkbox" @change="toggleAllDevices" :checked="isAllDevicesSelected && flatDeviceList.length > 0" class="cursor-pointer"></th>
+                            <th class="p-4">设备IP / 网段</th>
+                            <th class="p-4">当前归属代理</th>
+                            <th class="p-4 w-64">操作 (快速切绑)</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="dev in flatDeviceList" :key="dev.ip" class="border-b border-gray-100 hover:bg-indigo-50/30 transition text-sm">
+                            <td class="p-4 text-center"><input type="checkbox" v-model="dev.selected" class="cursor-pointer"></td>
+                            <td class="p-4 font-medium text-blue-500 font-mono">{{ dev.ip }}</td>
+                            <td class="p-4">
+                                <span v-if="dev.proxy === 'block'" class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs border border-gray-200">未分配</span>
+                                <span v-else class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-xs border border-indigo-100">{{ dev.proxy }}</span>
+                            </td>
+                            <td class="p-4 flex items-center space-x-2">
+                                <select v-model="dev.proxy" @change="changeDeviceProxy(dev.ip, dev.proxy)" class="border border-gray-200 rounded px-2 py-1.5 text-xs bg-white focus:outline-none focus:border-indigo-500 cursor-pointer">
+                                    <option value="block">未分配</option>
+                                    <option v-for="n in configData.nodes" :key="n.tag" :value="n.tag">{{ n.tag }}</option>
+                                </select>
+                                <button @click="openEditDeviceModal(dev)" class="bg-orange-400 hover:bg-orange-500 text-white px-3 py-1.5 rounded text-xs transition shadow-sm">编辑</button>
+                                <button @click="deleteSingleDevice(dev.ip)" class="bg-red-400 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs transition shadow-sm">删除</button>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="md:hidden space-y-3">
+                    <div v-if="flatDeviceList.length === 0" class="bg-white rounded-lg border border-gray-100 p-6 text-center text-sm text-gray-400">
+                        暂无设备数据
+                    </div>
+                    <div v-for="dev in flatDeviceList" :key="dev.ip" class="bg-white rounded-lg border border-gray-100 shadow-sm p-4 space-y-3">
+                        <div class="flex items-start gap-3">
+                            <input type="checkbox" v-model="dev.selected" class="mt-1 cursor-pointer">
+                            <div class="min-w-0 flex-1">
+                                <div class="font-mono font-bold text-blue-600 break-all">{{ dev.ip }}</div>
+                                <div class="mt-2">
+                                    <span v-if="dev.proxy === 'block'" class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs border border-gray-200">未分配</span>
+                                    <span v-else class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-xs border border-indigo-100">{{ dev.proxy }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <select v-model="dev.proxy" @change="changeDeviceProxy(dev.ip, dev.proxy)" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-indigo-500">
+                            <option value="block">未分配</option>
+                            <option v-for="n in configData.nodes" :key="n.tag" :value="n.tag">{{ n.tag }}</option>
+                        </select>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <button @click="openEditDeviceModal(dev)" class="bg-orange-400 text-white py-2 rounded-lg text-xs font-bold">编辑</button>
+                            <button @click="deleteSingleDevice(dev.ip)" class="bg-red-400 text-white py-2 rounded-lg text-xs font-bold">删除</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <component v-if="['vpn', 'wifi', 'pc'].includes(currentMenu)" :is="currentMenu + '-page'"></component>
+
+            <div v-show="currentMenu === 'system'" class="space-y-6">
+                <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="font-bold text-gray-800 text-lg border-b pb-3 mb-4">当前设备设置</h3>
+                    <p class="text-sm text-gray-500 mb-6">设置当前设备的名称备注，保存后会立即同步到在线服务</p>
+                    <div class="max-w-md space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2 text-gray-700">设备名称</label>
+                            <input v-model="deviceNameForm.name" placeholder="例如: 客户A-门店路由器" class="w-full p-2.5 border rounded-lg outline-none text-sm focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div class="pt-2 flex flex-col sm:flex-row sm:items-center gap-2">
+                            <button @click="submitDeviceName" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow text-sm font-medium transition w-full sm:w-auto">
+                                保存设备名称
+                            </button>
+                            <span v-if="deviceNameMessage" class="text-sm text-green-600 font-medium">{{ deviceNameMessage }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="font-bold text-gray-800 text-lg border-b pb-3 mb-4">全局 DNS 配置</h3>
+                    <p class="text-sm text-gray-500 mb-6">设置路由系统使用的上游 DNS 服务器，防止域名污染并提升解析速度。</p>
+                    <div class="max-w-md space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2 text-gray-700">快速选择</label>
+                            <select v-model="dnsForm.mode" class="w-full p-2.5 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-indigo-500 outline-none text-sm cursor-pointer">
+                                <option value="1.1.1.1">Cloudflare (1.1.1.1)</option>
+                                <option value="8.8.8.8">Google (8.8.8.8)</option>
+                                <option value="223.5.5.5">阿里云 (223.5.5.5)</option>
+                                <option value="114.114.114.114">114 DNS (114.114.114.114)</option>
+                                <option value="custom">自定义服务器...</option>
+                            </select>
+                        </div>
+                        <div v-if="dnsForm.mode === 'custom'">
+                            <label class="block text-sm font-medium mb-2 text-gray-700">自定义 DNS 服务器 IP</label>
+                            <input v-model="dnsForm.customValue" placeholder="例如: 8.8.4.4" class="w-full p-2.5 border rounded-lg outline-none text-sm focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div class="pt-2 flex flex-col sm:flex-row sm:items-center gap-2">
+                            <button @click="submitDns" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow text-sm font-medium transition w-full sm:w-auto">
+                                保存 DNS 配置
+                            </button>
+                            <span v-if="dnsMessage" class="text-sm text-green-600 font-medium">{{ dnsMessage }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+                    <h3 class="font-bold text-gray-800 text-lg border-b pb-3 mb-4">RouterOS 互联设置</h3>
+                    <p class="text-sm text-gray-500 mb-6">配置 MikroTik RouterOS API 的连接凭证，授权此面板接管网络组件。</p>
+                    <div class="max-w-md space-y-4">
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium mb-2 text-gray-700">管理 IP</label>
+                                <input v-model="rosForm.ip" placeholder="例如: 192.168.88.1" class="w-full p-2.5 border rounded-lg outline-none text-sm focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div class="sm:w-24">
+                                <label class="block text-sm font-medium mb-2 text-gray-700">API 端口</label>
+                                <input v-model.number="rosForm.port" type="number" placeholder="8728" class="w-full p-2.5 border rounded-lg outline-none text-sm focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium mb-2 text-gray-700">API 账号</label>
+                                <input v-model="rosForm.username" placeholder="admin" class="w-full p-2.5 border rounded-lg outline-none text-sm focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium mb-2 text-gray-700">密码</label>
+                                <input v-model="rosForm.password" type="password" placeholder="留空则无密码" class="w-full p-2.5 border rounded-lg outline-none text-sm focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
+                        <div class="pt-2 flex flex-col sm:flex-row sm:items-center gap-2">
+                            <button @click="submitRosConfig" :disabled="isTestingRos" :class="{'opacity-75 cursor-wait': isTestingRos}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow text-sm font-medium transition w-full sm:w-auto">
+                                {{ isTestingRos ? '连接测试中...' : '保存并测试连接' }}
+                            </button>
+                            <span v-if="rosMessage.text" :class="rosMessage.type === 'success' ? 'text-green-600' : 'text-red-600'" class="text-sm font-medium">
+                                {{ rosMessage.text }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+
+    <div v-if="showV2rayParserModal" class="fixed inset-0 bg-gray-900 bg-opacity-40 flex items-center justify-center z-50 p-3">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div class="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
+                <h3 class="font-bold text-gray-800">🔮 智能解析加密代理</h3>
+                <button @click="showV2rayParserModal = false" class="text-gray-400 hover:text-red-500 text-xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 space-y-4">
+                <textarea v-model="v2rayForm.text" rows="5" class="w-full p-3 border rounded-lg outline-none text-sm font-mono bg-gray-50 focus:ring-2 focus:ring-purple-500" placeholder="在此粘贴 vmess://, vless://, trojan://, ss://, hy2:// 等链接..."></textarea>
+                <div class="flex justify-end">
+                    <button @click="triggerParse" class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm shadow hover:bg-blue-600 transition">校验并解析</button>
+                </div>
+                <div v-if="v2rayForm.parsedNodes.length > 0" class="border rounded-lg overflow-hidden border-gray-200 shadow-sm">
+                    <div class="bg-gray-100 px-4 py-2 text-sm font-bold text-gray-700">解析预览 ({{ v2rayForm.parsedNodes.length }} 个)</div>
+                    <ul class="max-h-48 overflow-y-auto divide-y divide-gray-100 bg-white">
+                        <li v-for="(n, i) in v2rayForm.parsedNodes" :key="i" class="px-4 py-2 text-xs flex items-center">
+                            <span class="font-mono text-indigo-600 font-bold truncate w-1/4">{{ n.tag }}</span>
+                            <span class="text-gray-500 w-1/5"><span class="px-2 py-0.5 bg-gray-200 rounded uppercase font-bold text-[10px]">{{ n.type }}</span></span>
+                            <span class="text-gray-600 truncate w-1/2">{{ n.server }}:{{ n.server_port }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3">
+                <button @click="showV2rayParserModal = false" class="px-4 py-2 border rounded-lg text-sm bg-white">取消</button>
+                <button @click="submitParsedNodes" :disabled="v2rayForm.parsedNodes.length === 0" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm shadow disabled:opacity-50">立即导入</button>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="showProxyModal" class="fixed inset-0 bg-gray-900 bg-opacity-40 flex items-center justify-center z-50 p-3">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div class="px-6 py-4 border-b bg-gray-50 flex justify-between">
+                <h3 class="font-bold">智能批量导入纯 Socks5</h3>
+                <button @click="showProxyModal = false" class="text-gray-400 hover:text-red-500">&times;</button>
+            </div>
+            <div class="p-6">
+                <textarea v-model="proxyForm.text" rows="8" class="w-full p-3 border rounded-lg outline-none text-sm font-mono bg-gray-50" placeholder="在此粘贴..."></textarea>
+            </div>
+            <div class="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3">
+                <button @click="showProxyModal = false" class="px-4 py-2 border rounded-lg text-sm">取消</button>
+                <button @click="submitBatchProxies" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">解析并导入</button>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="showAddModal" class="fixed inset-0 bg-gray-900 bg-opacity-40 flex items-center justify-center z-50 p-3">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div class="px-6 py-4 border-b bg-gray-50 flex justify-between">
+                <h3 class="font-bold">添加设备数据</h3>
+                <button @click="showAddModal = false" class="text-gray-400 hover:text-red-500">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">选择代理 (可暂时不加)</label>
+                    <select v-model="deviceForm.tag" class="w-full p-2 border rounded-lg outline-none text-sm">
+                        <option value="">暂时不分配代理</option>
+                        <option v-for="n in configData.nodes" :key="n.tag" :value="n.tag">{{ n.tag }}</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">设备IP或网段</label>
+                    <textarea v-model="deviceForm.ipsText" rows="4" placeholder="10.10.1.2&#10;192.168.1.0/24" class="w-full p-3 border rounded-lg outline-none text-sm font-mono"></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3">
+                <button @click="showAddModal = false" class="px-4 py-2 border rounded-lg text-sm">取消</button>
+                <button @click="submitAddDevices" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="showEditProxyModal" class="fixed inset-0 bg-gray-900 bg-opacity-40 flex items-center justify-center z-50 p-3">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden">
+            <div class="px-6 py-4 border-b bg-gray-50 flex justify-between">
+                <h3 class="font-bold text-gray-800">编辑代理节点</h3>
+                <button @click="showEditProxyModal = false" class="text-gray-400 hover:text-red-500">&times;</button>
+            </div>
+            <div class="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-600">标签 (无法修改)</label>
+                    <input v-model="editForm.tag" disabled class="w-full p-2 border rounded-lg outline-none text-sm bg-gray-100 text-gray-400">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div v-for="field in primaryEditFields" :key="field.path" class="space-y-1">
+                        <label class="block text-sm font-medium text-gray-600">{{ field.label }}</label>
+                        <select v-if="field.type === 'boolean'" v-model="field.value" class="w-full p-2 border rounded-lg outline-none text-sm bg-white">
+                            <option :value="true">true</option>
+                            <option :value="false">false</option>
+                        </select>
+                        <input v-else-if="field.type === 'number'" v-model.number="field.value" type="number" class="w-full p-2 border rounded-lg outline-none text-sm font-mono">
+                        <input v-else v-model="field.value" class="w-full p-2 border rounded-lg outline-none text-sm font-mono">
+                    </div>
+                </div>
+
+                <div v-if="extraEditFields.length" class="border-t pt-4 space-y-4">
+<!--                    <div class="text-sm font-bold text-gray-700">协议参数</div>-->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div v-for="field in extraEditFields" :key="field.path" class="space-y-1">
+                            <label class="block text-sm font-medium text-gray-600">{{ field.label }}</label>
+                            <select v-if="field.type === 'boolean'" v-model="field.value" class="w-full p-2 border rounded-lg outline-none text-sm bg-white">
+                                <option :value="true">true</option>
+                                <option :value="false">false</option>
+                            </select>
+                            <input v-else-if="field.type === 'number'" v-model.number="field.value" type="number" class="w-full p-2 border rounded-lg outline-none text-sm font-mono">
+                            <input v-else v-model="field.value" class="w-full p-2 border rounded-lg outline-none text-sm font-mono">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3">
+                <button @click="showEditProxyModal = false" class="px-4 py-2 border rounded-lg text-sm">取消</button>
+                <button @click="submitEditProxy" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm shadow">保存修改</button>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="showEditDeviceModal" class="fixed inset-0 bg-gray-900 bg-opacity-40 flex items-center justify-center z-50 p-3">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div class="px-6 py-4 border-b bg-gray-50 flex justify-between">
+                <h3 class="font-bold text-gray-800">编辑设备 IP</h3>
+                <button @click="showEditDeviceModal = false" class="text-gray-400 hover:text-red-500">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-600">修改 IP / 网段</label>
+                    <input v-model="editDeviceForm.newIp" class="w-full p-2 border rounded-lg outline-none text-sm font-mono focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-600">归属代理</label>
+                    <select v-model="editDeviceForm.tag" class="w-full p-2 border rounded-lg outline-none text-sm focus:ring-2 focus:ring-indigo-500">
+                        <option value="block">未分配</option>
+                        <option v-for="n in configData.nodes" :key="n.tag" :value="n.tag">{{ n.tag }}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3">
+                <button @click="showEditDeviceModal = false" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-100">取消</button>
+                <button @click="submitEditDevice" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm shadow">保存修改</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script type="module">
+    // 引入拆分出去的页面组件
+    import VpnPage from './pages/vpn.js';
+    import WifiPage from './pages/wifi.js';
+    import PcPage from './pages/pc.js';
+
+    const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+    // 先创建应用实例
+    const app = createApp({
+        setup() {
+            const currentMenu = ref('proxies');
+            const mobileMenuOpen = ref(false);
+            const menuItems = [
+                { key: 'dashboard', label: '仪表盘' },
+                { key: 'proxies', label: '代理管理' },
+                { key: 'devices', label: '设备管理' },
+                { key: 'vpn', label: 'VPN 管理' },
+                { key: 'wifi', label: 'WiFi 管理' },
+                { key: 'pc', label: '内网终端管理' },
+                { key: 'system', label: '系统设置' }
+            ];
+            const currentMenuTitle = computed(() => {
+                const item = menuItems.find(i => i.key === currentMenu.value);
+                return item ? item.label : '';
+            });
+            const switchMenu = (menu) => {
+                currentMenu.value = menu;
+                mobileMenuOpen.value = false;
+            };
+            const configData = reactive({ nodes: [], rules: [] });
+            const stats = reactive({ os: '-', platform: '-', cpu_percent: 0, mem_total: 0, mem_used: 0, mem_percent: 0 });
+
+            const toast = reactive({ show: false, message: '', type: 'success' });
+
+            const showAddModal = ref(false);
+            const showProxyModal = ref(false);
+            const showV2rayParserModal = ref(false);
+            const showEditProxyModal = ref(false);
+            const showEditDeviceModal = ref(false);
+
+            const isTestingAll = ref(false);
+            const isApplying = ref(false);
+            const hasUnappliedChanges = ref(false);
+            const isDeletingDevices = ref(false);
+
+            const deviceForm = reactive({ tag: '', ipsText: '' });
+            const proxyForm = reactive({ text: '' });
+            const v2rayForm = reactive({ text: '', parsedNodes: [], errors: [] });
+            const editForm = reactive({ tag: '', node: {} });
+            const editFields = ref([]);
+            const primaryEditFields = computed(() => editFields.value.filter(f => ['server', 'server_port', 'username', 'password'].includes(f.path)));
+            const extraEditFields = computed(() => editFields.value.filter(f => !['server', 'server_port', 'username', 'password'].includes(f.path)));
+            const editDeviceForm = reactive({ oldIp: '', newIp: '', tag: '' });
+            const dnsForm = reactive({ mode: '223.5.5.5', customValue: '' });
+            const dnsMessage = ref('');
+            const deviceNameForm = reactive({ name: '' });
+            const deviceNameMessage = ref('');
+            const flatDeviceList = ref([]);
+
+            // 1. 初始化时尝试从 localStorage 读取已保存的配置，并做好字段映射
+            const savedRos = localStorage.getItem('rosConfig');
+            let initialRos = { ip: '', port: 8728, username: 'admin', password: '' };
+            if (savedRos) {
+                try {
+                    const parsed = JSON.parse(savedRos);
+                    // 关键：把缓存里的 server 映射回表单里的 ip
+                    initialRos = {
+                        ip: parsed.server || parsed.ip || '',
+                        port: parsed.port || 8728,
+                        username: parsed.username || 'admin',
+                        password: parsed.password || ''
+                    };
+                } catch (e) {}
+            }
+            const rosForm = reactive(initialRos);
+            const rosMessage = reactive({ text: '', type: 'success' });
+            const isTestingRos = ref(false);
+
+            const showToast = (msg, type = 'success') => {
+                toast.message = msg;
+                toast.type = type;
+                toast.show = true;
+                setTimeout(() => { toast.show = false; }, 2000);
+            };
+
+            const callApi = async (endpoint, payload = null) => {
+                const options = payload ? { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) } : {};
+                const res = await fetch(endpoint, options);
+                return await res.json();
+            };
+
+            const applyRosConfig = (cfg) => {
+                if (!cfg) return;
+                const payloadData = {
+                    server: cfg.server || cfg.ip || '',
+                    port: cfg.port || 8728,
+                    username: cfg.username || 'admin',
+                    password: cfg.password || ''
+                };
+                rosForm.ip = payloadData.server;
+                rosForm.port = payloadData.port;
+                rosForm.username = payloadData.username;
+                rosForm.password = payloadData.password;
+                localStorage.setItem('rosConfig', JSON.stringify(payloadData));
+            };
+
+            const loadRosConfig = async () => {
+                try {
+                    const res = await callApi('api/ros', { action: 'get_config' });
+                    if (res.status === 'success' && res.exists && res.config) {
+                        applyRosConfig(res.config);
+                        rosMessage.text = '已加载程序目录中的 RouterOS 配置';
+                        rosMessage.type = 'success';
+                        rosMessage.text = '连接成功，已保存到程序目录。';
+                    }
+                } catch (e) {}
+            };
+
+            const syncFlatList = () => {
+                const oldSelected = new Map(flatDeviceList.value.map(d => [d.ip, d.selected]));
+                let list = [];
+                configData.rules.forEach(rule => {
+                    if (rule.source_ip_cidr) {
+                        rule.source_ip_cidr.forEach(ip => {
+                            if(rule.outbound !== 'direct' && rule.outbound !== 'dns-out'){
+                                list.push({ ip: ip, proxy: rule.outbound, selected: oldSelected.get(ip) || false });
+                            }
+                        });
+                    }
+                });
+                flatDeviceList.value = list;
+                list.sort((a, b) => a.ip.localeCompare(b.ip, undefined, { numeric: true }));
+            };
+
+            const fetchData = async () => {
+                const data = await callApi('api/action', { action: 'get_data' });
+                const oldNodesMap = new Map(configData.nodes.map(n => [n.tag, { sel: n.selected, exp: n.expanded }]));
+                configData.nodes = (data.nodes || []).map(n => {
+                    const oldState = oldNodesMap.get(n.tag) || {};
+                    return {...n, selected: oldState.sel || false, expanded: oldState.exp || false};
+                });
+                configData.rules = data.rules || [];
+
+                if(data.dns) {
+                    const commonDns = ['1.1.1.1', '8.8.8.8', '223.5.5.5', '114.114.114.114'];
+                    if (commonDns.includes(data.dns)) {
+                        dnsForm.mode = data.dns;
+                    } else {
+                        dnsForm.mode = 'custom';
+                        dnsForm.customValue = data.dns;
+                    }
+                }
+                syncFlatList();
+            };
+
+            const fetchStats = async () => {
+                if(currentMenu.value === 'dashboard'){
+                    const data = await callApi('api/stats');
+                    Object.assign(stats, data);
+                }
+            };
+
+            const applyConfigAndRestart = async () => {
+                isApplying.value = true;
+                try {
+                    const res = await callApi('api/action', { action: 'apply_config' });
+                    if (res.status === 'success') {
+                        showToast("重启成功，配置已生效！", "success");
+                        hasUnappliedChanges.value = false;
+                    } else {
+                        showToast("重启失败: " + res.message, "error");
+                    }
+                } catch (e) {
+                    showToast("请求出错，请检查后台运行状态", "error");
+                } finally {
+                    isApplying.value = false;
+                }
+            };
+
+            const markChanged = () => { hasUnappliedChanges.value = true; };
+
+            // --- 新增：ROS 连接测试方法 ---
+            const submitRosConfig = async () => {
+                if (!rosForm.ip || !rosForm.port || !rosForm.username) {
+                    rosMessage.text = '请完整填写 IP、端口和账号';
+                    rosMessage.type = 'error';
+                    return;
+                }
+
+                isTestingRos.value = true;
+                rosMessage.text = '';
+                // 🌟 核心：构造一个和 Go 后端结构完全一致的对象
+                const payloadData = {
+                    server: rosForm.ip,   // 把前端的 ip 转换为后端的 server
+                    port: rosForm.port,
+                    username: rosForm.username,
+                    password: rosForm.password
+                };
+                try {
+                    const res = await callApi('api/ros', {
+                        action: 'test_connection',
+                        payload: payloadData
+                    });
+
+                    if (res.status === 'success') {
+                        rosMessage.text = '连接成功！已保存在本地。';
+                        rosMessage.type = 'success';
+
+                        // 🌟 核心：存进浏览器的也必须是这个转换好的 payloadData
+                        applyRosConfig(payloadData);
+                        rosMessage.text = '连接成功，已保存到程序目录。';
+                    } else {
+                        rosMessage.text = '连接失败: ' + res.message;
+                        rosMessage.type = 'error';
+                    }
+                } catch (error) {
+                    rosMessage.text = '网络请求异常';
+                    rosMessage.type = 'error';
+                } finally {
+                    isTestingRos.value = false;
+                    setTimeout(() => { rosMessage.text = ''; }, 4000);
+                }
+            };
+
+            // 原有代理相关逻辑
+            const selectedProxyTags = computed(() => configData.nodes.filter(n => n.selected).map(n => n.tag));
+            const isAllProxiesSelected = computed(() => configData.nodes.length > 0 && configData.nodes.every(n => n.selected));
+            const toggleAllProxies = (e) => {
+                const checked = e.target.checked;
+                configData.nodes.forEach(n => n.selected = checked);
+            };
+
+            const fallbackCopyTextToClipboard = (text) => {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast(`成功导出，已复制到剪贴板！`);
+                } catch (err) {
+                    prompt("浏览器权限限制自动复制，请手动复制以下内容：", text);
+                }
+                document.body.removeChild(textArea);
+            };
+
+            const exportSelectedProxies = () => {
+                const selectedNodes = configData.nodes.filter(n => n.selected);
+                if (selectedNodes.length === 0) return;
+                const text = selectedNodes.map(n => window.ProxyParser.buildUrl(n)).join('\n');
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        showToast(`成功导出并复制 ${selectedNodes.length} 个节点链接！`);
+                    }).catch(() => fallbackCopyTextToClipboard(text));
+                } else {
+                    fallbackCopyTextToClipboard(text);
+                }
+            };
+
+            const batchDeleteProxies = async () => {
+                const tags = selectedProxyTags.value;
+                if(tags.length === 0) return;
+                if(!confirm(`确定要删除选中的 ${tags.length} 个代理吗？\n删除后，设备无网络！`)) return;
+
+                await callApi('api/action', { action: 'batch_delete_nodes', payload: { tags: tags } });
+                fetchData();
+                markChanged();
+            };
+
+            const submitDns = async () => {
+                let finalDns = dnsForm.mode === 'custom' ? dnsForm.customValue.trim() : dnsForm.mode;
+                if (!finalDns) return alert("DNS 不能为空");
+                await callApi('api/action', { action: 'update_dns', payload: { dns: finalDns } });
+                dnsMessage.value = '配置保存成功！';
+                setTimeout(() => dnsMessage.value = '', 3000);
+                markChanged();
+            };
+
+            const fetchDeviceName = async () => {
+                const res = await callApi('api/action', { action: 'get_device_name' });
+                deviceNameForm.name = res.name || '';
+            };
+
+            const submitDeviceName = async () => {
+                const res = await callApi('api/action', { action: 'update_device_name', payload: { name: deviceNameForm.name } });
+                if (res.status === 'success') {
+                    deviceNameMessage.value = '设备名称保存成功！';
+                    setTimeout(() => deviceNameMessage.value = '', 4000);
+                } else {
+                    showToast(res.message || '保存设备名称失败', 'error');
+                }
+            };
+
+            const testProxy = async (node) => {
+                node.testing = true;
+                try {
+                    const cleanNode = JSON.parse(JSON.stringify(node));
+                    delete cleanNode.selected;
+                    delete cleanNode.expanded;
+                    delete cleanNode.testing;
+                    delete cleanNode.latency;
+                    delete cleanNode.realTesting;
+                    delete cleanNode.realTestResult;
+
+                    const res = await callApi('api/action', {
+                        action: 'test_node',
+                        payload: {
+                            type: node.type || 'socks',
+                            server: node.server,
+                            port: parseInt(node.server_port),
+                            username: node.username || '',
+                            password: node.password || '',
+                            node: cleanNode
+                        }
+                    });
+                    if (res.status === 'success') {
+                        node.latency = res.latency;
+                    } else {
+                        node.latency = -1;
+                    }
+                } catch (e) {
+                    node.latency = -1;
+                } finally {
+                    node.testing = false;
+                }
+            };
+
+            const realTestProxy = async (node) => {
+                node.realTesting = true;
+                node.realTestResult = undefined;
+                try {
+                    const cleanNode = JSON.parse(JSON.stringify(node));
+                    delete cleanNode.selected;
+                    delete cleanNode.expanded;
+                    delete cleanNode.testing;
+                    delete cleanNode.latency;
+                    delete cleanNode.realTesting;
+                    delete cleanNode.realTestResult;
+
+                    const res = await callApi('api/action', {
+                        action: 'real_test_node',
+                        payload: { node: cleanNode }
+                    });
+                    if (res.status === 'success') {
+                        node.realTestResult = { ...res, success: true };
+                        node.expanded = true;
+                    } else {
+                        node.realTestResult = { success: false, message: res.message || '真实测试失败' };
+                        node.expanded = true;
+                    }
+                } catch (e) {
+                    node.realTestResult = { success: false, message: '请求出错，请检查后台运行状态' };
+                    node.expanded = true;
+                } finally {
+                    node.realTesting = false;
+                }
+            };
+
+            const testAllProxies = async () => {
+                if (configData.nodes.length === 0) return showToast("当前没有可测速的代理", "error");
+                isTestingAll.value = true;
+                const promises = configData.nodes.map(node => testProxy(node));
+                await Promise.allSettled(promises);
+                isTestingAll.value = false;
+            };
+
+            const submitAddDevices = async () => {
+                const ips = deviceForm.ipsText.split('\n').map(i => i.trim()).filter(i => i);
+                if(!ips.length) return alert("请输入IP");
+                await callApi('api/action', { action: 'add_devices', payload: { tag: deviceForm.tag, ips } });
+                deviceForm.ipsText = '';
+                showAddModal.value = false;
+                fetchData();
+                markChanged();
+            };
+
+            const submitBatchProxies = async () => {
+                if(!proxyForm.text.trim()) return;
+                await callApi('api/action', { action: 'batch_add_socks', payload: { socks_text: proxyForm.text } });
+                proxyForm.text = '';
+                showProxyModal.value = false;
+                fetchData();
+                markChanged();
+            };
+
+            const triggerParse = () => {
+                v2rayForm.parsedNodes = [];
+                v2rayForm.errors = [];
+                const lines = v2rayForm.text.split('\n').map(l => l.trim()).filter(l => l);
+
+                lines.forEach(line => {
+                    try {
+                        v2rayForm.parsedNodes.push(window.ProxyParser.parseLine(line));
+                    } catch (e) {
+                        v2rayForm.errors.push(`解析失败: ${line.substring(0, 30)}...`);
+                    }
+                });
+            };
+
+            const submitParsedNodes = async () => {
+                if (v2rayForm.parsedNodes.length === 0) return;
+                const cleanNodes = JSON.parse(JSON.stringify(v2rayForm.parsedNodes));
+                const res = await callApi('api/action', { action: 'add_parsed_nodes', payload: { nodes: cleanNodes } });
+
+                if (res && res.status === 'success') {
+                    showToast(`成功导入 ${cleanNodes.length} 个代理！`);
+                    v2rayForm.text = '';
+                    v2rayForm.parsedNodes = [];
+                    showV2rayParserModal.value = false;
+                    await fetchData();
+                    markChanged();
+                } else {
+                    showToast("导入失败", "error");
+                }
+            };
+
+            const isEditableProxyField = (path, value) => {
+                const ignoredFields = ['tag', 'type', 'version', 'selected', 'expanded', 'testing', 'latency', 'realTesting', 'realTestResult'];
+                if (ignoredFields.some(field => path === field || path.startsWith(`${field}.`))) return false;
+                if (Array.isArray(value)) return false;
+                if (value === null || value === undefined) return false;
+                return ['string', 'number', 'boolean'].includes(typeof value);
+            };
+
+            const proxyFieldLabels = {
+                type: '协议类型',
+                server: '服务器 IP / 域名',
+                server_port: '端口',
+                username: '账号',
+                password: '密码',
+                uuid: 'UUID',
+                security: '加密方式',
+                alter_id: 'Alter ID',
+                flow: 'Flow',
+                'tls.enabled': 'TLS 开启',
+                'tls.server_name': 'TLS SNI',
+                'tls.insecure': 'TLS 跳过证书验证',
+                'transport.type': '传输类型',
+                'transport.path': '传输路径',
+                'transport.host': 'Host',
+                'transport.service_name': 'gRPC 服务名'
+            };
+
+            const collectEditFields = (obj, prefix = '') => {
+                const priority = ['type', 'server', 'server_port', 'username', 'password'];
+                const fields = [];
+                Object.keys(obj || {}).forEach(key => {
+                    const value = obj[key];
+                    const path = prefix ? `${prefix}.${key}` : key;
+                    if (isEditableProxyField(path, value)) {
+                        fields.push({ path, label: proxyFieldLabels[path] || path, value, type: typeof value });
+                    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+                        fields.push(...collectEditFields(value, path));
+                    }
+                });
+                return fields.sort((a, b) => {
+                    const ai = priority.indexOf(a.path);
+                    const bi = priority.indexOf(b.path);
+                    if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+                    return a.path.localeCompare(b.path);
+                });
+            };
+
+            const setNestedValue = (obj, path, value) => {
+                const parts = path.split('.');
+                let current = obj;
+                for (let i = 0; i < parts.length - 1; i++) {
+                    current = current[parts[i]];
+                }
+                current[parts[parts.length - 1]] = value;
+            };
+
+            const cleanProxyNodeForEdit = (node) => {
+                const cleanNode = JSON.parse(JSON.stringify(node));
+                delete cleanNode.selected;
+                delete cleanNode.expanded;
+                delete cleanNode.testing;
+                delete cleanNode.latency;
+                delete cleanNode.realTesting;
+                delete cleanNode.realTestResult;
+                return cleanNode;
+            };
+
+            const openEditModal = (node) => {
+                editForm.tag = node.tag;
+                editForm.node = cleanProxyNodeForEdit(node);
+                editFields.value = collectEditFields(editForm.node);
+                showEditProxyModal.value = true;
+            };
+
+            const submitEditProxy = async () => {
+                const cleanNode = JSON.parse(JSON.stringify(editForm.node));
+                editFields.value.forEach(field => setNestedValue(cleanNode, field.path, field.value));
+                cleanNode.tag = editForm.tag;
+                delete cleanNode.selected;
+                delete cleanNode.expanded;
+                delete cleanNode.testing;
+                delete cleanNode.latency;
+                delete cleanNode.realTesting;
+                delete cleanNode.realTestResult;
+
+                if(!cleanNode.server || !cleanNode.server_port) return alert("请填写完整的服务器和端口");
+                await callApi('api/action', { action: 'edit_node', payload: { node: cleanNode } });
+                showEditProxyModal.value = false;
+                fetchData();
+                markChanged();
+            };
+
+            const openEditDeviceModal = (dev) => {
+                editDeviceForm.oldIp = dev.ip;
+                editDeviceForm.newIp = dev.ip;
+                editDeviceForm.tag = dev.proxy;
+                showEditDeviceModal.value = true;
+            };
+
+            const submitEditDevice = async () => {
+                const newIpTrimmed = editDeviceForm.newIp.trim();
+                if (!newIpTrimmed) return alert("设备 IP 不能为空");
+                await callApi('api/action', { action: 'edit_device', payload: { ip: editDeviceForm.oldIp, new_ip: newIpTrimmed, tag: editDeviceForm.tag } });
+                showEditDeviceModal.value = false;
+                fetchData();
+                markChanged();
+            };
+
+            const deleteNode = async (tag) => {
+                if(!confirm(`删除 [${tag}] 后，其绑定的设备会自动切为"未分配"，确定吗？`)) return;
+                await callApi('api/action', { action: 'delete_node', payload: { tag } });
+                fetchData();
+                markChanged();
+            };
+
+            const changeDeviceProxy = async (ip, newProxyTag) => {
+                await callApi('api/action', { action: 'change_proxy', payload: { tag: newProxyTag, ip: ip } });
+                fetchData();
+                markChanged();
+            };
+
+            const deleteSingleDevice = async (ip) => {
+                if(!confirm(`确定删除设备 ${ip} 吗？`)) return;
+                await callApi('api/action', { action: 'delete_device', payload: { ip: ip } });
+                fetchData();
+                markChanged();
+            };
+
+            const selectedDeviceIPs = computed(() => flatDeviceList.value.filter(d => d.selected).map(d => d.ip));
+            const isAllDevicesSelected = computed(() => flatDeviceList.value.length > 0 && flatDeviceList.value.every(d => d.selected));
+            const toggleAllDevices = (e) => {
+                const checked = e.target.checked;
+                flatDeviceList.value.forEach(d => d.selected = checked);
+            };
+
+            const batchDeleteDevices = async () => {
+                const ips = selectedDeviceIPs.value;
+                if (ips.length === 0) return;
+                if (!confirm(`确定要删除选中的 ${ips.length} 台设备吗？\n删除后这些设备将不再走代理！`)) return;
+
+                isDeletingDevices.value = true;
+                try {
+                    // 后端 delete_device 是单 IP 操作，串行调用避免对 config.json 并发写
+                    for (const ip of ips) {
+                        await callApi('api/action', { action: 'delete_device', payload: { ip } });
+                    }
+                    showToast(`成功删除 ${ips.length} 台设备`);
+                    await fetchData();
+                    markChanged();
+                } catch (e) {
+                    showToast('批量删除出错，请刷新页面查看实际状态', 'error');
+                } finally {
+                    isDeletingDevices.value = false;
+                }
+            };
+
+            onMounted(() => {
+                loadRosConfig();
+                fetchData();
+                fetchDeviceName();
+                fetchStats();
+                setInterval(fetchStats, 3000);
+            });
+
+            return {
+                currentMenu, mobileMenuOpen, menuItems, currentMenuTitle, switchMenu, configData, stats, flatDeviceList, toast, showToast,
+                showAddModal, showProxyModal, showV2rayParserModal, showEditProxyModal, showEditDeviceModal, isTestingAll,
+                isApplying, hasUnappliedChanges, applyConfigAndRestart,
+                deviceForm, proxyForm, v2rayForm, editForm, editFields, primaryEditFields, extraEditFields, editDeviceForm, dnsForm, dnsMessage,
+                deviceNameForm, deviceNameMessage, submitDeviceName,
+                rosForm, rosMessage, isTestingRos, submitRosConfig, // 导出新增的 ROS 变量和方法
+                selectedProxyTags, isAllProxiesSelected, toggleAllProxies, batchDeleteProxies,
+                submitAddDevices, submitBatchProxies, triggerParse, submitParsedNodes,
+                openEditModal, submitEditProxy,
+                openEditDeviceModal, submitEditDevice,
+                deleteNode, changeDeviceProxy, deleteSingleDevice,
+                selectedDeviceIPs, isAllDevicesSelected, toggleAllDevices, batchDeleteDevices, isDeletingDevices,
+                testProxy, testAllProxies, realTestProxy, exportSelectedProxies, submitDns
+            }
+        }
+    });
+
+    // 将外部引入的文件注册为全局组件
+    app.component('vpn-page', VpnPage);
+    app.component('wifi-page', WifiPage);
+    app.component('pc-page', PcPage);
+
+    // 最后挂载
+    app.mount('#app');
+</script>
+</body>
+</html>
