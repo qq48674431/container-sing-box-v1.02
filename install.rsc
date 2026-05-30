@@ -3,6 +3,7 @@
 
 :local tarUrl "https://raw.githubusercontent.com/qq48674431/container-sing-box-v1.02/main/May.container1.02.tar"
 :local tarFile "May.container1.02.tar"
+:local subnetPrefix "192.168.101."
 :local bridgeName "sing-box"
 :local vethName "veth-Linux"
 :local vethAddr "192.168.101.2/24"
@@ -22,39 +23,53 @@
 :put "    container: yes"
 
 :put ">>> [2/5] 配置容器网络..."
-:if ([:len [/interface/bridge/find where name=$bridgeName]] = 0) do={
-    /interface/bridge/add name=$bridgeName
-    :put "    创建 bridge: $bridgeName"
-} else={
-    :put "    bridge $bridgeName 已存在，跳过"
+# 优先复用已有的、地址在 192.168.101.x 网段的 veth（兼容已手动配置的环境）
+:local existVeth ""
+:foreach v in=[/interface/veth/find] do={
+    :local a [/interface/veth/get $v address]
+    :if ([:find $a $subnetPrefix] >= 0) do={
+        :set existVeth [/interface/veth/get $v name]
+    }
 }
 
-:if ([:len [/ip/address/find where interface=$bridgeName]] = 0) do={
-    /ip/address/add address=$gwCidr interface=$bridgeName
-    :put "    分配 IP: $gwCidr -> $bridgeName"
+:if ($existVeth != "") do={
+    :set vethName $existVeth
+    :put "    检测到已有 veth: $vethName，复用现有网络，跳过创建"
 } else={
-    :put "    $bridgeName IP 已配置，跳过"
-}
+    :if ([:len [/interface/bridge/find where name=$bridgeName]] = 0) do={
+        /interface/bridge/add name=$bridgeName
+        :put "    创建 bridge: $bridgeName"
+    } else={
+        :put "    bridge $bridgeName 已存在，跳过"
+    }
 
-:if ([:len [/interface/veth/find where name=$vethName]] = 0) do={
-    /interface/veth/add name=$vethName address=$vethAddr gateway=$gwAddr
-    :put "    创建 veth: $vethName ($vethAddr)"
-} else={
-    :put "    veth $vethName 已存在，跳过"
-}
+    :if ([:len [/ip/address/find where interface=$bridgeName]] = 0) do={
+        /ip/address/add address=$gwCidr interface=$bridgeName
+        :put "    分配 IP: $gwCidr -> $bridgeName"
+    } else={
+        :put "    $bridgeName IP 已配置，跳过"
+    }
 
-:if ([:len [/interface/bridge/port/find where interface=$vethName]] = 0) do={
-    /interface/bridge/port/add bridge=$bridgeName interface=$vethName
-    :put "    veth 加入 bridge"
-} else={
-    :put "    bridge port 已存在，跳过"
-}
+    :if ([:len [/interface/veth/find where name=$vethName]] = 0) do={
+        /interface/veth/add name=$vethName address=$vethAddr gateway=$gwAddr
+        :put "    创建 veth: $vethName ($vethAddr)"
+    } else={
+        :put "    veth $vethName 已存在，跳过"
+    }
 
-:if ([:len [/ip/firewall/nat/find where chain=srcnat action=masquerade src-address=$subnet]] = 0) do={
-    /ip/firewall/nat/add chain=srcnat action=masquerade src-address=$subnet comment="singbox-container-v102"
-    :put "    添加 NAT 规则"
-} else={
-    :put "    NAT 规则已存在，跳过"
+    :if ([:len [/interface/bridge/port/find where interface=$vethName]] = 0) do={
+        /interface/bridge/port/add bridge=$bridgeName interface=$vethName
+        :put "    veth 加入 bridge"
+    } else={
+        :put "    bridge port 已存在，跳过"
+    }
+
+    :if ([:len [/ip/firewall/nat/find where chain=srcnat action=masquerade src-address=$subnet]] = 0) do={
+        /ip/firewall/nat/add chain=srcnat action=masquerade src-address=$subnet comment="singbox-container-v102"
+        :put "    添加 NAT 规则"
+    } else={
+        :put "    NAT 规则已存在，跳过"
+    }
 }
 
 :put ">>> [3/5] 设置容器仓库..."
@@ -73,6 +88,7 @@
 :if ([:len [/container/find where name=$containerName]] = 0) do={
     /container/add file=$tarFile interface=$vethName logging=yes \
         name=$containerName root-dir=/root start-on-boot=yes workdir=/
+    :put "    容器挂载接口: $vethName"
     :put "    等待镜像解压..."
     :delay 8s
     /container/start $containerName
