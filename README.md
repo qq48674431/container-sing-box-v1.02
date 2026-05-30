@@ -47,4 +47,4 @@ bash <(curl -sL https://raw.githubusercontent.com/qq48674431/container-sing-box-
 
 安装完成后默认访问：
 
-`http://192.168.101.2:8080`
+<!-- CHECKPOINT id="ckpt_mps4lec5_uaqiuq" time="2026-05-30T09:05:38.261Z" note="auto" fixes=0 questions=0 highlights=0 sections="" -->
